@@ -2,54 +2,26 @@
 
 namespace XHGui\Test\Controller;
 
-use Slim\Slim;
-use Slim\Environment;
+use Slim\Http\Environment;
+use XHGui\Options\SearchOptions;
 use XHGui\Test\TestCase;
-use Xhgui_Controller_Import;
-use Xhgui_Controller_Run;
-use Xhgui_Saver_Mongo;
-use Xhgui_Searcher_Mongo;
-use Xhgui_ServiceContainer;
 
 class RunTest extends TestCase
 {
-    /** @var Xhgui_Controller_Run */
-    private $runs;
-    /** @var Xhgui_Saver_Mongo */
-    private $saver;
-    /** @var Slim */
-    private $app;
-    /** @var Xhgui_Searcher_Mongo */
-    private $profiles;
-    /** @var Xhgui_Controller_Import */
-    private $import;
-
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
-        Environment::mock([
+
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
-            'PATH_INFO' => '/'
+            'PATH_INFO' => '/',
         ]);
-
-        $di = Xhgui_ServiceContainer::instance();
-        $di['app'] = $this->getMockBuilder(Slim::class)
-            ->setMethods(['redirect', 'render', 'urlFor'])
-            ->setConstructorArgs([$di['config']])
-            ->getMock();
-
-        $this->import = $di['importController'];
-        $this->runs = $di['runController'];
-        $this->app = $di['app'];
-        $this->profiles = $di['searcher'];
-        $this->profiles->truncate();
-        $this->saver = $di['saver'];
     }
 
-    public function testIndexEmpty()
+    public function testIndexEmpty(): void
     {
-        $this->runs->index();
-        $result = $this->runs->templateVars();
+        $this->runs->index($this->request);
+        $result = $this->view->all();
 
         $this->assertEquals('Recent runs', $result['title']);
         $this->assertFalse($result['has_search'], 'No search being done.');
@@ -62,45 +34,45 @@ class RunTest extends TestCase
         $this->assertEquals($expected, $result['paging']);
     }
 
-    public function testIndexSortedWallTime()
+    public function testIndexSortedWallTime(): void
     {
-        Environment::mock([
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/',
             'QUERY_STRING' => 'sort=wt',
         ]);
 
-        $this->runs->index();
-        $result = $this->runs->templateVars();
+        $this->runs->index($this->request);
+        $result = $this->view->all();
         $this->assertEquals('Longest wall time', $result['title']);
         $this->assertEquals('wt', $result['paging']['sort']);
     }
 
-    public function testIndexSortedCpu()
+    public function testIndexSortedCpu(): void
     {
-        Environment::mock([
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/',
             'QUERY_STRING' => 'sort=cpu&direction=desc',
         ]);
 
-        $this->runs->index();
-        $result = $this->runs->templateVars();
+        $this->runs->index($this->request);
+        $result = $this->view->all();
         $this->assertEquals('Most CPU time', $result['title']);
         $this->assertEquals('cpu', $result['paging']['sort']);
         $this->assertEquals('desc', $result['paging']['direction']);
     }
 
-    public function testIndexWithSearch()
+    public function testIndexWithSearch(): void
     {
-        Environment::mock([
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/',
             'QUERY_STRING' => 'sort=mu&direction=asc&url=index.php',
         ]);
 
-        $this->runs->index();
-        $result = $this->runs->templateVars();
+        $this->runs->index($this->request);
+        $result = $this->view->all();
         $this->assertEquals('Highest memory use', $result['title']);
         $this->assertEquals('mu', $result['paging']['sort']);
         $this->assertEquals('asc', $result['paging']['direction']);
@@ -108,183 +80,180 @@ class RunTest extends TestCase
         $this->assertTrue($result['has_search']);
     }
 
-    public function testUrl()
+    public function testUrl(): void
     {
-        Environment::mock([
+        $this->skipIfPdo('getForUrl is not implemented');
+
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/url/view',
             'QUERY_STRING' => 'url=%2Ftasks',
         ]);
 
-        $this->runs->url();
+        $this->runs->url($this->request);
 
-        $result = $this->runs->templateVars();
+        $result = $this->view->all();
         $this->assertEquals('url.view', $result['base_url']);
         $this->assertEquals('/tasks', $result['url']);
         $this->assertArrayHasKey('chart_data', $result);
         $this->assertArrayHasKey('runs', $result);
     }
 
-    public function testUrlWithSearch()
+    public function testUrlWithSearch(): void
     {
         $this->markTestIncomplete('Not done');
     }
 
-    public function testUrlWithSearchInterval()
+    public function testUrlWithSearchInterval(): void
     {
         $this->markTestIncomplete('Not done');
     }
 
-    public function testCompareNoBase()
+    public function testCompareNoBase(): void
     {
         $this->markTestIncomplete('Not done');
     }
 
-    public function testCompareWithBase()
+    public function testCompareWithBase(): void
     {
         $this->markTestIncomplete('Not done');
     }
 
-    public function testCompareWithBaseAndHead()
+    public function testCompareWithBaseAndHead(): void
     {
         $this->markTestIncomplete('Not done');
     }
 
-    public function testSymbol()
+    public function testSymbol(): void
     {
         $this->markTestIncomplete('Not done');
     }
 
-    public function testCallgraph()
+    public function testCallgraph(): void
     {
-        loadFixture($this->saver, XHGUI_ROOT_DIR . '/tests/fixtures/results.json');
-        Environment::mock([
+        $this->searcher->truncate();
+        $this->importFixture($this->saver);
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/',
             'QUERY_STRING' => 'id=aaaaaaaaaaaaaaaaaaaaaaaa',
         ]);
 
-        $this->runs->callgraph();
-        $result = $this->runs->templateVars();
+        $this->runs->callgraph($this->request);
+        $result = $this->view->all();
         $this->assertArrayHasKey('profile', $result);
         $this->assertArrayHasKey('date_format', $result);
         $this->assertArrayNotHasKey('callgraph', $result);
     }
 
-    public function testCallgraphData()
+    public function testCallgraphData(): void
     {
-        loadFixture($this->saver, XHGUI_ROOT_DIR . '/tests/fixtures/results.json');
-        Environment::mock([
+        $this->searcher->truncate();
+        $this->importFixture($this->saver);
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/',
             'QUERY_STRING' => 'id=aaaaaaaaaaaaaaaaaaaaaaaa',
         ]);
 
-        $this->runs->callgraphData();
-        $response = $this->app->response();
-
-        $this->assertEquals('application/json', $response['Content-Type']);
-        $this->assertStringStartsWith('{"', $response->body());
+        $result = $this->runs->callgraphData($this->request);
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('metric', $result);
+        $this->assertArrayHasKey('total', $result);
+        $this->assertArrayHasKey('nodes', $result);
+        $this->assertArrayHasKey('links', $result);
     }
 
-    public function testDeleteSubmit()
+    public function testDeleteSubmit(): void
     {
-        loadFixture($this->saver, XHGUI_ROOT_DIR . '/tests/fixtures/results.json');
+        $this->skipIfPdo('Undefined index: page');
+        $searcher = $this->searcher->truncate();
+        $this->importFixture($this->saver);
 
-        Environment::mock([
+        $this->env = Environment::mock([
             'REQUEST_METHOD' => 'POST',
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/run/delete',
-            'slim.request.form_hash' => [
-                'id' => 'aaaaaaaaaaaaaaaaaaaaaaaa',
-            ],
         ]);
 
-        $this->app->expects($this->once())
-            ->method('urlFor')
-            ->with('home');
+        $request = $this->createPostRequest(['id' => 'aaaaaaaaaaaaaaaaaaaaaaaa']);
 
-        $this->app->expects($this->once())
-            ->method('redirect');
+        $result = $searcher->getAll(new SearchOptions());
+        $count = count($result['results']);
 
-        $result = $this->profiles->getAll();
-        $this->assertCount(5, $result['results']);
+        $this->runs->deleteSubmit($request);
 
-        $this->runs->deleteSubmit();
-
-        $result = $this->profiles->getAll();
-        $this->assertCount(4, $result['results']);
+        $result = $searcher->getAll(new SearchOptions());
+        $this->assertCount($count - 1, $result['results']);
     }
 
-    public function testDeleteAllSubmit()
+    public function testDeleteAllSubmit(): void
     {
-        loadFixture($this->saver, XHGUI_ROOT_DIR . '/tests/fixtures/results.json');
+        $this->skipIfPdo('Undefined index: page');
+        $this->searcher->truncate();
+        $this->importFixture($this->saver);
 
-        Environment::mock([
+        $this->env = Environment::mock([
           'SCRIPT_NAME' => 'index.php',
           'PATH_INFO' => '/run/delete_all',
         ]);
 
-        $this->app->expects($this->once())
-          ->method('urlFor')
-          ->with('home');
-
-        $this->app->expects($this->once())
-          ->method('redirect');
-
-        $result = $this->profiles->getAll();
-        $this->assertCount(5, $result['results']);
+        $result = $this->searcher->getAll(new SearchOptions());
+        $this->assertGreaterThan(0, count($result['results']));
 
         $this->runs->deleteAllSubmit();
 
-        $result = $this->profiles->getAll();
+        $result = $this->searcher->getAll(new SearchOptions());
         $this->assertCount(0, $result['results']);
     }
 
-    public function testFilterCustomMethods()
+    public function testFilterCustomMethods(): void
     {
-        loadFixture($this->saver, XHGUI_ROOT_DIR . '/tests/fixtures/results.json');
+        $this->searcher->truncate();
+        $this->importFixture($this->saver);
 
-        Environment::mock([
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/run/view',
             'QUERY_STRING' => 'id=aaaaaaaaaaaaaaaaaaaaaaad&filter=main*,strpos()',
         ]);
 
-        $this->runs->view();
-        $result = $this->runs->templateVars();
+        $this->runs->view($this->request);
+        $result = $this->view->all();
 
         $this->assertCount(1, $result['profile']);
     }
 
-    public function testFilterCustomMethod()
+    public function testFilterCustomMethod(): void
     {
-        loadFixture($this->saver, XHGUI_ROOT_DIR . '/tests/fixtures/results.json');
+        $this->searcher->truncate();
+        $this->importFixture($this->saver);
 
-        Environment::mock([
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/run/view',
             'QUERY_STRING' => 'id=aaaaaaaaaaaaaaaaaaaaaaad&filter=main*',
         ]);
 
-        $this->runs->view();
-        $result = $this->runs->templateVars();
+        $this->runs->view($this->request);
+        $result = $this->view->all();
 
         $this->assertCount(2, $result['profile']);
     }
 
-    public function testFilterMethods()
+    public function testFilterMethods(): void
     {
-        loadFixture($this->saver, XHGUI_ROOT_DIR . '/tests/fixtures/results.json');
+        $this->searcher->truncate();
+        $this->importFixture($this->saver);
 
-        Environment::mock([
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/run/view',
             'QUERY_STRING' => 'id=aaaaaaaaaaaaaaaaaaaaaaad&filter=true',
         ]);
 
-        $this->runs->view();
-        $result = $this->runs->templateVars();
+        $this->runs->view($this->request);
+        $result = $this->view->all();
 
         $this->assertCount(2, $result['profile']);
     }

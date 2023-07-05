@@ -1,0 +1,67 @@
+name: "Tests: MySQL"
+
+on:
+  - pull_request
+
+jobs:
+  mysql:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        php:
+          - "7.2"
+          - "7.3"
+          - "7.4"
+
+    services:
+      mysql:
+        image: percona/percona-server:5.7
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_USER: "xhgui"
+          MYSQL_PASSWORD: "password"
+          MYSQL_DATABASE: "xhgui"
+          MYSQL_ALLOW_EMPTY_PASSWORD: "1"
+        options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=2s --health-retries=3
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: xdebug-2.9.8, pdo, pdo_mysql
+
+      - name: Validate composer.json and composer.lock
+        run: composer validate
+
+      - name: Cache Composer packages
+        id: composer-cache
+        uses: actions/cache@v2
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ matrix.php }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-${{ matrix.php }}-
+
+      - name: Install dependencies
+        if: steps.composer-cache.outputs.cache-hit != 'true'
+        run: composer install --prefer-dist --no-progress --no-suggest
+
+      - name: Run PHPUnit tests
+        run: composer test
+        env:
+          XHGUI_SAVE_HANDLER: "pdo"
+          XHGUI_PDO_DSN: "mysql:host=127.0.0.1;dbname=xhgui"
+          XHGUI_PDO_USER: "xhgui"
+          XHGUI_PDO_PASS: "password"
+
+      - name: MySQL Service logs
+        run: docker logs ${{ job.services.mysql.id }}
+        if: always()
+
+# vim:ft=yaml:et:ts=2:sw=2
