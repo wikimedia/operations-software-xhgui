@@ -118,7 +118,7 @@ class Xhgui_Searcher_Pdo implements Xhgui_Searcher_Interface
     /**
      * {@inheritdoc}
      */
-    public function getForUrl($url, $options, $conditions = array())
+    public function getForUrl($url, $options, $conditions = [])
     {
         // TODO: Implement getForUrl() method.
     }
@@ -126,7 +126,7 @@ class Xhgui_Searcher_Pdo implements Xhgui_Searcher_Interface
     /**
      * {@inheritdoc}
      */
-    public function getPercentileForUrl($percentile, $url, $search = array())
+    public function getPercentileForUrl($percentile, $url, $search = [])
     {
         // TODO: Implement getPercentileForUrl() method.
     }
@@ -134,7 +134,7 @@ class Xhgui_Searcher_Pdo implements Xhgui_Searcher_Interface
     /**
      * {@inheritdoc}
      */
-    public function getAvgsForUrl($url, $search = array())
+    public function getAvgsForUrl($url, $search = [])
     {
         // TODO: Implement getAvgsForUrl() method.
     }
@@ -142,14 +142,32 @@ class Xhgui_Searcher_Pdo implements Xhgui_Searcher_Interface
     /**
      * {@inheritdoc}
      */
-    public function getAll($options = array())
+    public function getAll($options = [])
     {
         $sort = $options['sort'];
         $direction = $options['direction'];
-        $page = $options['page'];
-        $perPage = $options['perPage'];
+        $page = (int)$options['page'];
+        if ($page < 1) {
+            $page = 1;
+        }
+        $perPage = (int)$options['perPage'];
+        $url = $options['conditions']['url'] ?? "";
 
-        $stmt = $this->pdo->query("
+        $stmt = $this->pdo->prepare("
+          SELECT COUNT(*) AS count
+          FROM {$this->table}
+          WHERE simple_url LIKE :url
+        ");
+        $stmt->execute(['url' => '%'.$url.'%']);
+        $totalRows = (int)$stmt->fetchColumn();
+
+        $totalPages = max(ceil($totalRows/$perPage), 1);
+        if ($page > $totalPages) {
+            $page = $totalPages;
+        }
+        $skip = ($page-1) * $perPage;
+
+        $stmt = $this->pdo->prepare("
           SELECT
             id,
             url,
@@ -162,15 +180,18 @@ class Xhgui_Searcher_Pdo implements Xhgui_Searcher_Interface
             request_date,
             main_wt,
             main_ct,
-            main_cpu, 
+            main_cpu,
             main_mu,
             main_pmu
           FROM {$this->table}
+          WHERE simple_url LIKE :url
           ORDER BY request_ts DESC
-        ", PDO::FETCH_ASSOC);
+          LIMIT $skip, $perPage
+        ");
+        $stmt->execute(['url' => '%'.$url.'%']);
 
         $results = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $results[] = new Xhgui_Profile([
                 '_id' => $row['id'],
                 'meta' => [
@@ -195,14 +216,14 @@ class Xhgui_Searcher_Pdo implements Xhgui_Searcher_Interface
             ]);
         }
 
-        return array(
+        return [
             'results' => $results,
             'sort' => 'meta.request_ts',
             'direction' => 'desc',
-            'page' => 1,
-            'perPage' => count($results),
-            'totalPages' => 1
-        );
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => $totalPages,
+        ];
     }
 
     /**
@@ -249,5 +270,31 @@ class Xhgui_Searcher_Pdo implements Xhgui_Searcher_Interface
      */
     public function truncateWatches()
     {
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function stats()
+    {
+        $stmt = $this->pdo->query("
+          SELECT
+            COUNT(*) AS profiles,
+            MAX(request_ts) AS latest,
+            SUM(LENGTH(profile)) AS bytes
+          FROM {$this->table}
+        ", PDO::FETCH_ASSOC);
+
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (false === $row) {
+            $row = [
+                'profiles' => 0,
+                'latest'   => 0,
+                'bytes'    => 0,
+            ];
+        }
+
+        return $row;
     }
 }

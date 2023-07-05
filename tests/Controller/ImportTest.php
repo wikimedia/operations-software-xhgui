@@ -1,29 +1,42 @@
 <?php
-use Slim\Environment;
 
-class Controller_ImportTest extends PHPUnit\Framework\TestCase
+namespace XHGui\Test\Controller;
+
+use Slim\Slim;
+use Slim\Environment;
+use XHGui\Test\TestCase;
+use Xhgui_Controller_Import;
+use Xhgui_Profile;
+use Xhgui_Searcher_Interface;
+use Xhgui_ServiceContainer;
+
+class ImportTest extends TestCase
 {
+    /** @var Xhgui_Searcher_Interface */
+    private $profiles;
+    /** @var Xhgui_Controller_Import */
+    private $import;
+
     public function setUp()
     {
         parent::setUp();
-        Environment::mock(array(
+        Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/'
-        ));
+        ]);
 
         $di = Xhgui_ServiceContainer::instance();
-        $mock = $this->getMockBuilder('Slim\Slim')
-            ->setMethods(array('redirect', 'render', 'urlFor'))
-            ->setConstructorArgs(array($di['config']))
+        $mock = $this->getMockBuilder(Slim::class)
+            ->setMethods(['redirect', 'render', 'urlFor'])
+            ->setConstructorArgs([$di['config']])
             ->getMock();
 
-        $di['app'] = $di->share(function ($c) use ($mock) {
+        $di['app'] = $di->share(static function ($c) use ($mock) {
             return $mock;
         });
         $this->import = $di['importController'];
-        $this->app = $di['app'];
 
-        $this->profiles = $di['searcher.mongo'];
+        $this->profiles = $di['searcher'];
         $this->profiles->truncate();
     }
 
@@ -50,11 +63,11 @@ class Controller_ImportTest extends PHPUnit\Framework\TestCase
                 ]
             ]
         ];
-        Environment::mock(array(
+        Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/',
             'slim.input' => json_encode($data)
-        ));
+        ]);
 
         $before = $this->profiles->getForUrl('/things', []);
         $this->assertEmpty($before['results']);
