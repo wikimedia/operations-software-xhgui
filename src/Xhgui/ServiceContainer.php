@@ -1,12 +1,18 @@
 <?php
+
+use Pimple\Container;
 use Slim\Slim;
 use Slim\Views\Twig;
 use Slim\Middleware\SessionCookie;
 
-class Xhgui_ServiceContainer extends Pimple
+class Xhgui_ServiceContainer extends Container
 {
+    /** @var self */
     protected static $_instance;
 
+    /**
+     * @return self
+     */
     public static function instance()
     {
         if (empty(static::$_instance)) {
@@ -17,6 +23,7 @@ class Xhgui_ServiceContainer extends Pimple
 
     public function __construct()
     {
+        parent::__construct();
         $this->_slimApp();
         $this->_services();
         $this->_controllers();
@@ -25,8 +32,8 @@ class Xhgui_ServiceContainer extends Pimple
     // Create the Slim app.
     protected function _slimApp()
     {
-        $this['view'] = function ($c) {
-            $cacheDir = isset($c['config']['cache']) ? $c['config']['cache'] : XHGUI_ROOT_DIR . '/cache';
+        $this['view'] = static function ($c) {
+            $cacheDir = $c['config']['cache'] ?? XHGUI_ROOT_DIR . '/cache';
 
             // Configure Twig view for slim
             $view = new Twig();
@@ -43,7 +50,7 @@ class Xhgui_ServiceContainer extends Pimple
             return $view;
         };
 
-        $this['app'] = $this->share(function ($c) {
+        $this['app'] = static function ($c) {
             if ($c['config']['timezone']) {
                 date_default_timezone_set($c['config']['timezone']);
             }
@@ -65,7 +72,7 @@ class Xhgui_ServiceContainer extends Pimple
             $app->view($view);
 
             return $app;
-        });
+        };
     }
 
     /**
@@ -75,7 +82,7 @@ class Xhgui_ServiceContainer extends Pimple
     {
         $this['config'] = Xhgui_Config::all();
 
-        $this['db'] = $this->share(function ($c) {
+        $this['db'] = static function ($c) {
             $config = $c['config'];
             if (empty($config['db.options'])) {
                 $config['db.options'] = [];
@@ -87,25 +94,29 @@ class Xhgui_ServiceContainer extends Pimple
             $mongo->{$config['db.db']}->results->findOne();
 
             return $mongo->{$config['db.db']};
-        });
+        };
 
-        $this['pdo'] = $this->share(function ($c) {
+        $this['pdo'] = static function ($c) {
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ];
             return new PDO(
                 $c['config']['pdo']['dsn'],
                 $c['config']['pdo']['user'],
-                $c['config']['pdo']['pass']
+                $c['config']['pdo']['pass'],
+                $options
             );
-        });
+        };
 
-        $this['searcher.mongo'] = function ($c) {
+        $this['searcher.mongo'] = static function ($c) {
             return new Xhgui_Searcher_Mongo($c['db']);
         };
 
-        $this['searcher.pdo'] = function ($c) {
+        $this['searcher.pdo'] = static function ($c) {
             return new Xhgui_Searcher_Pdo($c['pdo'], $c['config']['pdo']['table']);
         };
 
-        $this['searcher'] = function ($c) {
+        $this['searcher'] = static function ($c) {
             $config = $c['config'];
 
             switch ($config['save.handler']) {
@@ -118,14 +129,14 @@ class Xhgui_ServiceContainer extends Pimple
             }
         };
 
-        $this['saver.mongo'] = function ($c) {
+        $this['saver.mongo'] = static function ($c) {
             $config = $c['config'];
             $config['save.handler'] = 'mongodb';
 
             return Xhgui_Saver::factory($config);
         };
 
-        $this['saver'] = function ($c) {
+        $this['saver'] = static function ($c) {
             return Xhgui_Saver::factory($c['config']);
         };
     }
@@ -135,29 +146,28 @@ class Xhgui_ServiceContainer extends Pimple
      */
     protected function _controllers()
     {
-        $this['watchController'] = function ($c) {
+        $this['watchController'] = $this->factory(static function ($c) {
             return new Xhgui_Controller_Watch($c['app'], $c['searcher']);
-        };
+        });
 
-        $this['runController'] = function ($c) {
+        $this['runController'] = $this->factory(static function ($c) {
             return new Xhgui_Controller_Run($c['app'], $c['searcher']);
-        };
+        });
 
-        $this['customController'] = function ($c) {
+        $this['customController'] = $this->factory(static function ($c) {
             return new Xhgui_Controller_Custom($c['app'], $c['searcher']);
-        };
+        });
 
-        $this['waterfallController'] = function ($c) {
+        $this['waterfallController'] = $this->factory(static function ($c) {
             return new Xhgui_Controller_Waterfall($c['app'], $c['searcher']);
-        };
+        });
 
-        $this['importController'] = function ($c) {
+        $this['importController'] = $this->factory(static function ($c) {
             return new Xhgui_Controller_Import($c['app'], $c['saver'], $c['config']['upload.token']);
-        };
+        });
 
-        $this['metricsController'] = function ($c) {
+        $this['metricsController'] = $this->factory(static function ($c) {
             return new Xhgui_Controller_Metrics($c['app'], $c['searcher']);
-        };
+        });
     }
-
 }
