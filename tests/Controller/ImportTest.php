@@ -2,42 +2,25 @@
 
 namespace XHGui\Test\Controller;
 
-use Slim\Slim;
-use Slim\Environment;
+use Slim\Http\Environment;
+use XHGui\Profile;
 use XHGui\Test\TestCase;
-use Xhgui_Controller_Import;
-use Xhgui_Profile;
-use Xhgui_Searcher_Interface;
-use Xhgui_ServiceContainer;
 
 class ImportTest extends TestCase
 {
-    /** @var Xhgui_Searcher_Interface */
-    private $profiles;
-    /** @var Xhgui_Controller_Import */
-    private $import;
-
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
-        Environment::mock([
+
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
-            'PATH_INFO' => '/'
+            'PATH_INFO' => '/',
         ]);
-
-        $di = Xhgui_ServiceContainer::instance();
-        $di['app'] = $this->getMockBuilder(Slim::class)
-            ->setMethods(['redirect', 'render', 'urlFor'])
-            ->setConstructorArgs([$di['config']])
-            ->getMock();
-
-        $this->import = $di['importController'];
-        $this->profiles = $di['searcher'];
-        $this->profiles->truncate();
     }
 
-    public function testImportSuccess()
+    public function testImportSuccess(): void
     {
+        $this->skipIfPdo('getForUrl not implemented');
         $data = [
             'meta' => [
                 'url' => '/things?key=value',
@@ -45,31 +28,33 @@ class ImportTest extends TestCase
                 'get' => [],
                 'env' => [],
                 'SERVER' => ['REQUEST_TIME' => 1358787612],
-                'request_ts_micro' => ['sec' => 1358787612, 'usec' => 123456]
+                'request_ts_micro' => ['sec' => 1358787612, 'usec' => 123456],
             ],
             'profile' => [
-                "main()" => [
-                    "ct" => 1,
-                    "wt" => 50139,
-                    "cpu" => 49513,
-                    "mu" => 3449360,
-                    "pmu" => 3535120
-                ]
-            ]
+                'main()' => [
+                    'ct' => 1,
+                    'wt' => 50139,
+                    'cpu' => 49513,
+                    'mu' => 3449360,
+                    'pmu' => 3535120,
+                ],
+            ],
         ];
-        Environment::mock([
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => 'index.php',
             'PATH_INFO' => '/',
-            'slim.input' => json_encode($data)
         ]);
 
-        $before = $this->profiles->getForUrl('/things', []);
+        $request = $this->createJsonPostRequest($data);
+
+        $searcher = $this->searcher->truncate();
+        $before = $searcher->getForUrl('/things', []);
         $this->assertEmpty($before['results']);
 
-        $this->import->import();
+        $this->import->import($request);
 
-        $after = $this->profiles->getForUrl('/things', []);
+        $after = $searcher->getForUrl('/things', []);
         $this->assertNotEmpty($after['results']);
-        $this->assertInstanceOf(Xhgui_Profile::class, $after['results'][0]);
+        $this->assertInstanceOf(Profile::class, $after['results'][0]);
     }
 }

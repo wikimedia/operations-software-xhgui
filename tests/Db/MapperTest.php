@@ -5,21 +5,21 @@ namespace XHGui\Test\Db;
 use DateInterval;
 use DateTime;
 use MongoDate;
+use XHGui\Db\Mapper;
 use XHGui\Test\TestCase;
-use Xhgui_Db_Mapper;
 
 class MapperTest extends TestCase
 {
-    /** @var Xhgui_Db_Mapper */
+    /** @var Mapper */
     private $mapper;
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
-        $this->mapper = new Xhgui_Db_Mapper();
+        $this->mapper = new Mapper();
     }
 
-    public function testConvertConditions()
+    public function testConvertConditions(): void
     {
         $opts = [
             'conditions' => [
@@ -30,18 +30,18 @@ class MapperTest extends TestCase
                 'request_start' => '2013-02-13 12:22:00',
                 'request_end' => '2013-02-13 14:22:00',
                 'remote_addr' => '127.0.0.1',
-            ]
+            ],
         ];
         $result = $this->mapper->convert($opts);
         $expected = [
             'meta.simple_url' => '/tasks',
             'meta.url' => [
                 '$regex' => 'tasks',
-                '$options' => 'i'
+                '$options' => 'i',
             ],
             'meta.request_date' => [
                 '$gte' => '2013-01-20',
-                '$lte' => '2013-01-21'
+                '$lte' => '2013-01-21',
             ],
             'meta.SERVER.REQUEST_TIME' => [
                 '$gte' => strtotime($opts['conditions']['request_start']),
@@ -52,13 +52,13 @@ class MapperTest extends TestCase
         $this->assertEquals($expected, $result['conditions']);
     }
 
-    public function testConvertConditionsLimit()
+    public function testConvertConditionsLimit(): void
     {
         $opts = [
             'conditions' => [
                 'simple_url' => '/tasks',
-                'limit' => 'P1D'
-            ]
+                'limit' => 'P1D',
+            ],
         ];
         $date = new DateTime();
         $date->sub(new DateInterval('P1D'));
@@ -68,19 +68,19 @@ class MapperTest extends TestCase
             'meta.request_ts' => [
                 '$gte' => new MongoDate($date->getTimestamp()),
             ],
-            'meta.simple_url' => '/tasks'
+            'meta.simple_url' => '/tasks',
         ];
         $this->assertEquals($expected, $result['conditions']);
     }
 
-    public function testConvertConditionsLimitIgnoreDateStart()
+    public function testConvertConditionsLimitIgnoreDateStart(): void
     {
         $opts = [
             'conditions' => [
                 'simple_url' => '/tasks',
                 'limit' => 'P1D',
                 'date_start' => '2013-10-16',
-            ]
+            ],
         ];
         $date = new DateTime();
         $date->sub(new DateInterval('P1D'));
@@ -90,34 +90,34 @@ class MapperTest extends TestCase
             'meta.request_ts' => [
                 '$gte' => new MongoDate($date->getTimestamp()),
             ],
-            'meta.simple_url' => '/tasks'
+            'meta.simple_url' => '/tasks',
         ];
         $this->assertEquals($expected, $result['conditions']);
     }
 
-    public function testConditionsPartial()
+    public function testConditionsPartial(): void
     {
         $result = $this->mapper->convert([
             'conditions' => [
                 'date_start' => '2013-01-15',
-            ]
+            ],
         ]);
         $expected = [
             'meta.request_date' => [
                 '$gte' => '2013-01-15',
-            ]
+            ],
         ];
         $this->assertEquals($expected, $result['conditions']);
 
         $result = $this->mapper->convert([
             'conditions' => [
                 'date_end' => '2013-01-20',
-            ]
+            ],
         ]);
         $expected = [
             'meta.request_date' => [
-                '$lte' => '2013-01-20'
-            ]
+                '$lte' => '2013-01-20',
+            ],
         ];
         $this->assertEquals($expected, $result['conditions']);
 
@@ -125,23 +125,23 @@ class MapperTest extends TestCase
             'conditions' => [
                 'date_start' => '2013-01-15',
                 'date_end' => '2013-01-20',
-                'url' => 'tasks'
-            ]
+                'url' => 'tasks',
+            ],
         ]);
         $expected = [
             'meta.url' => [
                 '$regex' => 'tasks',
-                '$options' => 'i'
+                '$options' => 'i',
             ],
             'meta.request_date' => [
                 '$gte' => '2013-01-15',
-                '$lte' => '2013-01-20'
-            ]
+                '$lte' => '2013-01-20',
+            ],
         ];
         $this->assertEquals($expected, $result['conditions']);
     }
 
-    public function testConvertSort()
+    public function testConvertSort(): void
     {
         $options = [
             'sort' => 'time',
@@ -163,7 +163,7 @@ class MapperTest extends TestCase
 
         $options = [
             'sort' => 'wt',
-            'direction' => 'asc'
+            'direction' => 'asc',
         ];
         $result = $this->mapper->convert($options);
         $this->assertEquals(
@@ -174,7 +174,7 @@ class MapperTest extends TestCase
 
         $options = [
             'sort' => 'wt',
-            'direction' => 'desc'
+            'direction' => 'desc',
         ];
         $result = $this->mapper->convert($options);
         $this->assertEquals(
@@ -185,7 +185,7 @@ class MapperTest extends TestCase
 
         $options = [
             'sort' => 'wt',
-            'direction' => 'farts'
+            'direction' => 'farts',
         ];
         $result = $this->mapper->convert($options);
         $this->assertEquals(
@@ -204,17 +204,16 @@ class MapperTest extends TestCase
         );
     }
 
-    public function testConvertPerPage()
+    public function testConvertPerPage(): void
     {
         $options = [];
         $result = $this->mapper->convert($options);
         $this->assertEquals(25, $result['perPage']);
 
         $options = [
-            'perPage' => 1
+            'perPage' => 1,
         ];
         $result = $this->mapper->convert($options);
         $this->assertEquals(1, $result['perPage']);
     }
-
 }

@@ -1,11 +1,15 @@
-# xhgui
+# XHGui
 
 A graphical interface for XHProf profiling data that can store the results in MongoDB or PDO database.
 
-Application is [profiled](#profiling-a-web-request-or-cli-script) and the
+Application is profiled and the
 profiling data is transferred to XHGui, which takes that information, saves it
 in MongoDB (or PDO database), and provides a convenient GUI for working with
 it.
+
+This project is the GUI for showing profiling results,
+to profile your application, use specific minimal library:
+-  [perftools/php-profiler](#profiling-a-web-request-or-cli-script)
 
 [![Build Status](https://travis-ci.org/perftools/xhgui.svg?branch=master)](https://travis-ci.org/perftools/xhgui)
 [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/perftools/xhgui/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/perftools/xhgui/?branch=master)
@@ -15,20 +19,24 @@ it.
 
 XHGui has the following requirements:
 
-- PHP version 7.0 up to 7.3
+- Known to work: PHP >= 7.2, 8.0, 8.1
 - If using MongoDB storage, see [MongoDB](#MongoDB) requirements
 - If using PDO storage, see [PDO](#PDO) requirements
 - To profile an application, one of the profiling PHP extensions is required.
   See [Profiling a Web Request or CLI script](#profiling-a-web-request-or-cli-script).
   The extension is not needed to run XHGui itself.
 
+If you need to decide which backend to use, you can check the [compatibility
+matrix](#compatibility-matrix) what features are implemented or missing per
+backend.
+
 ## MongoDB
 
 The default installation uses MongoDB database. Most of the documentation speaks about MongoDB.
 
-- [MongoDB Extension][ext-mongodb] MongoDB PHP driver.
-  XHGui requires verison 1.3.0 or later.
-- [MongoDB][mongodb] MongoDB Itself. XHGui requires version 2.2.0 or later.
+- [MongoDB Extension][ext-mongodb] MongoDB PHP driver: `pecl install mongodb`
+  XHGui requires version 1.3.0 or later.
+- [MongoDB][mongodb] MongoDB Itself. XHGui requires version 3.2 or later.
 
 [ext-mongodb]: https://pecl.php.net/package/mongodb
 [mongodb]: https://www.mongodb.com/
@@ -37,16 +45,19 @@ The default installation uses MongoDB database. Most of the documentation speaks
 
 - [PDO][ext-pdo] PHP extension
 
-Any of the drivers and accompanying database:
+Any of the drivers and an accompanying database:
 
 - [SQLite (PDO)][ext-pdo_sqlite]
 - [MySQL (PDO)][ext-pdo_mysql]
 - [PostgreSQL (PDO)][ext-pdo_pgsql]
 
+NOTE: PDO may not support all the features of XHGui, see [#320].
+
 [ext-pdo]: https://www.php.net/manual/en/book.pdo.php
 [ext-pdo_sqlite]: https://www.php.net/manual/en/ref.pdo-sqlite.php
 [ext-pdo_mysql]: https://www.php.net/manual/en/ref.pdo-mysql.php
 [ext-pdo_pgsql]: https://www.php.net/manual/en/ref.pdo-pgsql.php
+[#320]: https://github.com/perftools/xhgui/issues/320
 
 # Installation from source
 
@@ -89,14 +100,13 @@ Any of the drivers and accompanying database:
    > db.results.ensureIndex( { 'profile.main().cpu' : -1 } )
    > db.results.ensureIndex( { 'meta.url' : 1 } )
    > db.results.ensureIndex( { 'meta.simple_url' : 1 } )
+   > db.results.ensureIndex( { 'meta.SERVER.SERVER_NAME' : 1 } )
    ```
 
-7. Run XHGui's install script. The install script downloads composer and
-   uses it to install the XHGui's dependencies.
+7. Install dependencies with composer
 
    ```bash
-   cd path/to/xhgui
-   php install.php
+   composer install --no-dev
    ```
 
 8. Set up your webserver. The Configuration section below describes how
@@ -110,7 +120,7 @@ This setup uses [docker-compose] to orchestrate docker containers.
 
 2. Startup the containers: `docker-compose up -d`
 
-3. Open your browser at http://xhgui.127.0.0.1.xip.io:8142 or just http://localhost:8142
+3. Open your browser at http://xhgui.127.0.0.1.xip.io:8142 or just http://localhost:8142 or type at terminal `composer open`
 
 4. To customize xhgui, copy `config/config.default.php` to `config/config.php` and edit that file.
 
@@ -174,28 +184,26 @@ server {
 
 # Profiling a Web Request or CLI script
 
-The recommended way tho profile an application is to use [perftools/php-profiler] package.
+The supported way to profile an application is to use [perftools/php-profiler]
+package.
 
-You can use that package to collect data from your web applications and CLI
-scripts.
+You can use that package to collect data from your web application or a CLI
+script.
 
-This data is then pushed into XHGui database where it can be viewed with this
+This data is then pushed into XHGui database where it can be viewed with XHGui
 application.
 
-It offers submitting data directly to XHGui instance once the profiling is
-complete at the end of the request.
+The `php-profiler` package offers submitting data directly to XHGui instance
+once the profiling is complete at the end of the request.
 
-If the site cannot directly connect to XGHui instance, the package offers
-solution to capture profiling data to file which you can import using
-`external/import.php` script:
-
-```bash
-php external/import.php -f /path/to/jsonlinesfile.jsonl
-```
+If the application cannot directly connect to XHGui instance, the package
+offers solution to capture profiling data to a file which you can import later
+using the [import][import-jsonl-files] script.
 
 **Warning**: Importing the same file twice will create duplicate profiles.
 
 [perftools/php-profiler]: https://github.com/perftools/php-profiler
+[import-jsonl-files]: https://github.com/perftools/php-profiler#import-jsonl-files
 
 ## Limiting MongoDB Disk Usage
 
@@ -240,6 +248,33 @@ Some Notes:
 [Prometheus](https://prometheus.io) metrics suitable for monitoring service
 health are exposed on `/metrics`.  (This currently only works if using PDO for
 storage.)
+
+# Compatibility matrix
+
+| Feature                         | MongoDB  | PDO      |
+|---------------------------------|----------|----------|
+| Prometheus exporter             | ✗        | ✓ [#305] |
+| Searcher::latest()              | ✓        | ✓        |
+| Searcher::query()               | ✓        | ✗ [#384] |
+| Searcher::get()                 | ✓        | ✓        |
+| Searcher::getForUrl()           | ✓        | ✓ [#436] |
+| Searcher::getPercentileForUrl() | ✓        | ✓ [#436] |
+| Searcher::getAvgsForUrl()       | ✓        | ✗ [#384] |
+| Searcher::getAll(sort)          | ✓        | ✓ [#436] |
+| Searcher::getAll(direction)     | ✓        | ✓ [#436] |
+| Searcher::delete()              | ✓        | ✓        |
+| Searcher::truncate()            | ✓        | ✓        |
+| Searcher::saveWatch()           | ✓        | ✓ [#435] |
+| Searcher::getAllWatches()       | ✓        | ✓ [#435] |
+| Searcher::truncateWatches()     | ✓        | ✓ [#435] |
+| Searcher::stats()               | ✗ [#305] | ✓        |
+| Searcher::getAllServerNames()   | ✓ [#460] | ✗        |
+
+[#305]: https://github.com/perftools/xhgui/pull/305
+[#384]: https://github.com/perftools/xhgui/pull/384
+[#435]: https://github.com/perftools/xhgui/pull/435
+[#436]: https://github.com/perftools/xhgui/pull/436
+[#460]: https://github.com/perftools/xhgui/pull/460
 
 # Releases / Changelog
 

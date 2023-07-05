@@ -2,65 +2,41 @@
 
 namespace XHGui\Test\Controller;
 
-use Slim\Environment;
+use Slim\Http\Environment;
 use XHGui\Test\TestCase;
-use Xhgui_Controller_Watch;
-use Xhgui_Searcher_Interface;
-use Xhgui_ServiceContainer;
-use Slim\Slim;
 
 class WatchTest extends TestCase
 {
-    /** @var Xhgui_Controller_Watch */
-    private $watches;
-    /** @var Slim */
-    private $app;
-    /** @var Xhgui_Searcher_Interface */
-    private $searcher;
-
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
-        Environment::mock([
+        $this->skipIfPdo('Watchers not implemented');
+
+        $this->env = Environment::mock([
            'SCRIPT_NAME' => 'index.php',
-           'PATH_INFO' => '/watch'
+           'PATH_INFO' => '/watch',
         ]);
-
-        $di = Xhgui_ServiceContainer::instance();
-        $di['app'] = $this->getMockBuilder(Slim::class)
-            ->setMethods(['redirect', 'render', 'urlFor'])
-            ->setConstructorArgs([$di['config']])
-            ->getMock();
-
-        $this->watches = $di['watchController'];
-        $this->app = $di['app'];
-        $this->searcher = $di['searcher'];
-        $this->searcher->truncateWatches();
     }
 
-    public function testGet()
+    public function testGet(): void
     {
+        $this->searcher->truncateWatches();
         $this->watches->get();
-        $result = $this->watches->templateVars();
+        $result = $this->view->all();
         $this->assertEquals([], $result['watched']);
     }
 
-    public function testPostAdd()
+    public function testPostAdd(): void
     {
-        $_POST = [
+        $this->searcher->truncateWatches();
+        $request = $this->createPostRequest([
             'watch' => [
                 ['name' => 'strlen'],
-                ['name' => 'strpos']
-            ]
-        ];
-        $this->app->expects($this->once())
-            ->method('urlFor')
-            ->with('watch.list');
+                ['name' => 'strpos'],
+            ],
+        ]);
 
-        $this->app->expects($this->once())
-            ->method('redirect');
-
-        $this->watches->post();
+        $this->watches->post($request);
         $result = $this->searcher->getAllWatches();
 
         $this->assertCount(2, $result);
@@ -68,37 +44,39 @@ class WatchTest extends TestCase
         $this->assertEquals('strpos', $result[1]['name']);
     }
 
-    public function testPostModify()
+    public function testPostModify(): void
     {
-        $this->searcher->saveWatch(['name' => 'strlen']);
-        $saved = $this->searcher->getAllWatches();
+        $searcher = $this->searcher->truncateWatches();
+        $searcher->saveWatch(['name' => 'strlen']);
+        $saved = $searcher->getAllWatches();
 
-        $_POST = [
+        $request = $this->createPostRequest([
             'watch' => [
-                ['name' => 'strpos', '_id' => $saved[0]['_id']]
-            ]
-        ];
-        $this->watches->post();
-        $result = $this->searcher->getAllWatches();
+                ['name' => 'strpos', '_id' => $saved[0]['_id']],
+            ],
+        ]);
+        $this->watches->post($request);
+        $result = $searcher->getAllWatches();
 
         $this->assertCount(1, $result);
         $this->assertEquals('strpos', $result[0]['name']);
     }
 
-    public function testPostDelete()
+    public function testPostDelete(): void
     {
+        $this->searcher->truncateWatches();
         $this->searcher->saveWatch(['name' => 'strlen']);
         $saved = $this->searcher->getAllWatches();
 
-        $_POST = [
+        $request = $this->createPostRequest([
             'watch' => [
-                ['removed' => 1, 'name' => 'strpos', '_id' => $saved[0]['_id']]
-            ]
-        ];
-        $this->watches->post();
+                ['removed' => 1, 'name' => 'strpos', '_id' => $saved[0]['_id']],
+            ],
+        ]);
+
+        $this->watches->post($request);
         $result = $this->searcher->getAllWatches();
 
         $this->assertCount(0, $result);
     }
-
 }

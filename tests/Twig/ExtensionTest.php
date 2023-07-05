@@ -2,86 +2,76 @@
 
 namespace XHGui\Test\Twig;
 
-use Slim\Environment;
-use Slim\Slim;
+use Slim\Http\Environment;
 use XHGui\Test\TestCase;
-use Xhgui_Twig_Extension;
 
 class ExtensionTest extends TestCase
 {
-    /** @var Xhgui_Twig_Extension */
-    private $ext;
-
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
-        $app = new Slim();
-        $app->get('/test', static function () {
-        })->name('test');
-        $this->ext = new Xhgui_Twig_Extension($app);
+        $this->app->get('/test', function (): void {
+        })->setName('test');
     }
 
-    public function testFormatBytes()
+    public function testFormatBytes(): void
     {
         $result = $this->ext->formatBytes(2999);
         $expected = '2,999&nbsp;<span class="units">bytes</span>';
         $this->assertEquals($expected, $result);
     }
 
-    public function testFormatTime()
+    public function testFormatTime(): void
     {
         $result = $this->ext->formatTime(2999);
         $expected = '2,999&nbsp;<span class="units">µs</span>';
         $this->assertEquals($expected, $result);
     }
 
-    /**
-     * @return array
-     */
-    public function makePercentProvider()
+    public function makePercentProvider(): array
     {
         return [
             [
                 10,
                 100,
-                '10 <span class="units">%</span>'
+                '10 <span class="units">%</span>',
             ],
             [
                 0.5,
                 100,
-                '1 <span class="units">%</span>'
+                '1 <span class="units">%</span>',
             ],
             [
                 100,
                 0,
-                '0 <span class="units">%</span>'
-            ]
+                '0 <span class="units">%</span>',
+            ],
         ];
     }
 
     /**
      * @dataProvider makePercentProvider
      */
-    public function testMakePercent($value, $total, $expected)
+    public function testMakePercent($value, $total, $expected): void
     {
         $result = $this->ext->makePercent($value, $total, $total);
         $this->assertEquals($expected, $result);
     }
 
-    public static function urlProvider()
+    public static function urlProvider(): array
     {
         return [
             // simple no query string
             [
                 'test',
                 null,
-                '/test'
+                '/test',
             ],
             // simple with query string
             [
                 'test',
                 ['test' => 'value'],
-                '/test?test=value'
+                '/test?test=value',
             ],
         ];
     }
@@ -89,7 +79,7 @@ class ExtensionTest extends TestCase
     /**
      * @dataProvider urlProvider
      */
-    public function testUrl($url, $query, $expected)
+    public function testUrl($url, $query, $expected): void
     {
         $_SERVER['PHP_SELF'] = '/';
         $_SERVER['REQUEST_METHOD'] = 'GET';
@@ -102,9 +92,9 @@ class ExtensionTest extends TestCase
         $this->assertStringEndsWith($expected, $result);
     }
 
-    public function testStaticUrlNoIndexPhp()
+    public function testStaticUrlNoIndexPhp(): void
     {
-        Environment::mock([
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => '/index.php',
             'PHP_SELF' => '/index.php',
             'REQUEST_URI' => '/',
@@ -113,9 +103,9 @@ class ExtensionTest extends TestCase
         $this->assertEquals('/css/bootstrap.css', $result);
     }
 
-    public function testStaticUrlWithIndexPhp()
+    public function testStaticUrlWithIndexPhp(): void
     {
-        Environment::mock([
+        $this->env = Environment::mock([
             'SCRIPT_NAME' => '/xhgui/webroot/index.php',
             'PHP_SELF' => '/xhgui/webroot/index.php/',
             'REQUEST_URI' => '/xhgui/webroot/index.php/',
